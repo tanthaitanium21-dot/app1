@@ -10,7 +10,7 @@ export const handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
-
+// Force deploy to reload ENV
   // ดึง IP Address ของผู้ใช้
   const userIp = event.headers['x-nf-client-connection-ip'] || 'unknown';
 
@@ -54,4 +54,5 @@ export const handler = async (event) => {
   } catch (err) {
     return { statusCode: 500, body: JSON.stringify({ success: false, message: 'เกิดข้อผิดพลาดในระบบ' }) };
   }
+
 };
