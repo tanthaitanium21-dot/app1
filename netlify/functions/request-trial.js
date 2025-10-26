@@ -1,69 +1,87 @@
-// ไฟล์: netlify/functions/request-trial.js (โค้ดที่ถูกต้องและสมบูรณ์)
+// File: netlify/functions/request-trial.js
+
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// กำหนดเวลาทดลองใช้: 1 วัน (24 ชั่วโมง)
+const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;
 
-export const handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
-  }
-
-  const userIp = event.headers['x-nf-client-connection-ip'] || 'unknown';
-
-  try {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
-    // 1. ตรวจสอบว่า IP นี้เคยขอทดลองใช้ใน 24 ชั่วโมงที่ผ่านมาหรือไม่
-    const { data, error: selectError } = await supabase
-      .from('trial_logs')
-      .select('id')
-      .eq('ip_address', userIp)
-      .gte('created_at', twentyFourHoursAgo)
-      .single();
-    
-    // จัดการ Error เมื่อไม่พบข้อมูล ซึ่งถือว่าปกติ
-    if (selectError && selectError.code !== 'PGRST116') {
-       throw new Error(`Supabase select error: ${selectError.message}`);
+export default async function handler(event) {
+    // 1. ตรวจสอบเมธอดของคำขอ
+    if (event.httpMethod!== 'POST') {
+        return {
+            statusCode: 405,
+            body: JSON.stringify({ success: false, message: 'Method Not Allowed' })
+        };
     }
 
-    if (data) {
-      // ถ้าเจอข้อมูล แสดงว่าเคยใช้แล้ว
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ success: false, message: 'คุณได้ใช้สิทธิ์ทดลองใช้ฟรีไปแล้ว' }),
-      };
+    try {
+        // 2. ตรวจสอบตัวแปรสภาพแวดล้อม (Environment Variables)
+        const supabaseUrl = process.env.SUPABASE_URL;
+        // ใช้ SERVICE_ROLE_KEY ใน Backend/Function เพื่อความปลอดภัยและสิทธิ์การเข้าถึงเต็มรูปแบบ
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY; 
+
+        if (!supabaseUrl ||!serviceRoleKey) {
+            console.error('SUPABASE_URL or SERVICE_ROLE_KEY is missing.');
+            return {
+                statusCode: 500,
+                body: JSON.stringify({ success: false, message: 'Server configuration error (missing keys).' })
+            };
+        }
+
+        // 3. เริ่มต้น Supabase Client ด้วย Service Role Key (Admin Client)
+        const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+        
+        // เราสมมติว่าคุณส่งข้อมูลผู้ใช้ (เช่น IP หรือ ID เซสชัน) มาใน Body
+        const { userId = 'anonymous_trial' } = JSON.parse(event.body);
+
+        // 4. คำนวณวันหมดอายุ (24 ชั่วโมงจากตอนนี้)
+        const expiresAt = new Date(Date.now() + TRIAL_DURATION_MS);
+        const expiresAtISO = expiresAt.toISOString();
+
+        // 5. บันทึก/อัปเดตสถานะในฐานข้อมูล Supabase 
+        // (สมมติว่าคุณมีตารางชื่อ 'trial_users' สำหรับการจัดการสิทธิ์)
+        const { data, error } = await supabaseAdmin
+           .from('trial_users')
+           .upsert(
+                {
+                    user_identifier: userId, // หรือใช้ Netlify Identity ID หากมี
+                    trial_granted_at: new Date().toISOString(),
+                    expires_at: expiresAtISO
+                },
+                { onConflict: 'user_identifier' }
+            )
+           .select();
+
+        if (error) {
+            console.error('Supabase Error:', error);
+            // ข้อผิดพลาดที่นี่อาจเกิดจาก Regional Mismatch (Layer 4)
+            // หรือปัญหา RLS/Permissions (แม้จะใช้ Service Role Key ก็ตาม)
+            return {
+                statusCode: 500,
+                body: JSON.stringify({ success: false, message: `Database operation failed: ${error.message}` })
+            };
+        }
+
+        // 6. ส่งผลลัพธ์ที่สำเร็จกลับไปยัง Frontend
+        return {
+            statusCode: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                // *สำคัญ:* หากคุณกำลังใช้ Edge Functions, คุณอาจต้องเพิ่มส่วนหัว CORS
+                // แต่สำหรับ Netlify Functions, ปกติ Netlify จะจัดการส่วนหัวพื้นฐานให้
+            },
+            body: JSON.stringify({
+                success: true,
+                expires_at: expiresAtISO,
+                message: 'Trial access granted for 24 hours.'
+            })
+        };
+
+    } catch (e) {
+        console.error('General Function Error:', e);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ success: false, message: 'Internal server error during trial request.' })
+        };
     }
-
-    // 2. ถ้ายังไม่เคยใช้ ให้บันทึก IP ลงฐานข้อมูล
-    const { error: insertError } = await supabase.from('trial_logs').insert({ ip_address: userIp });
-    
-    if (insertError) {
-      throw new Error(`Supabase insert error: ${insertError.message}`);
-    }
-
-    // 3. คำนวณวันหมดอายุ (ปัจจุบัน + 1 วัน) แล้วส่งกลับไป
-    const now = new Date();
-    const expiryDate = new Date(now.setDate(now.getDate() + 1));
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        message: 'เปิดใช้งานโหมดทดลองใช้สำเร็จ!',
-        expires_at: expiryDate.toISOString(),
-      }),
-    };
-  } catch (err) {
-    // ส่งรายละเอียดข้อผิดพลาดกลับไป (เผื่อมีปัญหาอื่น)
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        message: 'An internal server error occurred.',
-        error_details: err.message
-      })
-    };
-  }
-};
+}
