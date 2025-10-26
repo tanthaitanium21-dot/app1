@@ -1,45 +1,61 @@
-﻿// ไฟล์: netlify/functions/request-trial.js
+// ไฟล์: netlify/functions/request-trial.js (เวอร์ชันสำหรับดีบัก)
 import { createClient } from '@supabase/supabase-js';
 
-// ดึงค่าจาก Environment Variables ที่เราจะตั้งค่าใน Netlify
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 export const handler = async (event) => {
+  // เพิ่มคอมเมนต์เล็กน้อยเพื่อบังคับให้ Netlify deploy ใหม่
+  // Debug Version 1.1
+  
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+  // --- ส่วนตรวจสอบตัวแปร ---
+  if (!supabaseUrl || !supabaseKey) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        success: false,
+        message: 'Server Error: Environment variables are missing.',
+        error_details: `URL Found: ${!!supabaseUrl}, Key Found: ${!!supabaseKey}`
+      })
+    };
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
-// Force deploy to reload ENV
-  // ดึง IP Address ของผู้ใช้
+
   const userIp = event.headers['x-nf-client-connection-ip'] || 'unknown';
 
   try {
-    // 1. ตรวจสอบว่า IP นี้เคยขอทดลองใช้ใน 24 ชั่วโมงที่ผ่านมาหรือไม่
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const { data, error } = await supabase
+    const { data, error: selectError } = await supabase
       .from('trial_logs')
       .select('id')
       .eq('ip_address', userIp)
       .gte('created_at', twentyFourHoursAgo)
       .single();
+    
+    // PGRST116 คือ error "ไม่พบข้อมูล" ซึ่งในกรณีนี้คือสิ่งที่ถูกต้อง
+    if (selectError && selectError.code !== 'PGRST116') {
+       throw new Error(`Supabase select error: ${selectError.message}`);
+    }
 
     if (data) {
-      // ถ้าเจอข้อมูล แสดงว่าเคยใช้แล้ว
       return {
         statusCode: 200,
         body: JSON.stringify({ success: false, message: 'คุณได้ใช้สิทธิ์ทดลองใช้ฟรีไปแล้ว' }),
       };
     }
 
-    // 2. ถ้ายังไม่เคยใช้ ให้บันทึก IP ลงฐานข้อมูล
     const { error: insertError } = await supabase.from('trial_logs').insert({ ip_address: userIp });
+    
     if (insertError) {
-      throw new Error('ไม่สามารถบันทึกข้อมูลการทดลองใช้ได้');
+      throw new Error(`Supabase insert error: ${insertError.message}`);
     }
 
-    // 3. คำนวณวันหมดอายุ (ปัจจุบัน + 1 วัน) แล้วส่งกลับไป
     const now = new Date();
     const expiryDate = new Date(now.setDate(now.getDate() + 1));
 
@@ -52,7 +68,14 @@ export const handler = async (event) => {
       }),
     };
   } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ success: false, message: 'เกิดข้อผิดพลาดในระบบ' }) };
+    // --- ส่งรายละเอียดข้อผิดพลาดที่แท้จริงกลับไป ---
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        success: false,
+        message: 'An error occurred in the system.',
+        error_details: err.message // นี่คือสิ่งที่เราอยากเห็น!
+      })
+    };
   }
-
 };
