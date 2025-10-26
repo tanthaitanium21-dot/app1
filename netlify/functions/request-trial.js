@@ -1,6 +1,5 @@
-//... (โค้ดส่วนบนเหมือนเดิม) ...
-
-//... (ตรงส่วนนี้คือโลจิกการเชื่อมต่อ Supabase) ...
+// ไฟล์: netlify/functions/request-trial.js (เฉพาะส่วนที่ต้องแก้ไข)
+// ... (โค้ดส่วน try) ...
 
   } catch (err) {
     // --- ส่งรายละเอียดข้อผิดพลาดที่แท้จริงกลับไป ---
@@ -9,9 +8,8 @@
       body: JSON.stringify({
         success: false,
         message: 'An error occurred in the system.',
-        error_details: err.message // นี่คือสิ่งที่เราอยากเห็น!
-      })
-    };
+        error_details: err.message
+      }) // <<--- วงเล็บปีกกาและวงเล็บปิดของ JSON.stringify
+    }; // <<--- วงเล็บปีกกาและวงเล็บปิดของ Object ที่ return
   }
-
-
+}; // <<--- วงเล็บปิดของ function handler
