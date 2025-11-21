@@ -1,0 +1,103 @@
+/* assets/style.css */
+
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap');
+
+body {
+    font-family: 'Sarabun', sans-serif;
+    background-color: #f4f7f9;
+    color: #334155;
+}
+
+/* Utility Classes */
+.tab-active {
+    border-color: #3b82f6;
+    color: #3b82f6;
+    font-weight: 700;
+}
+
+/* Card Styling */
+.config-card {
+    background-color: white;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+    border-left: 4px solid #3b82f6;
+    transition: all 0.2s ease-in-out;
+}
+.config-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -2px rgb(0 0 0 / 0.07);
+}
+
+/* Form Elements */
+.circuit-container {
+    background-color: #f8fafc;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-top: 1rem;
+    border: 1px solid #e2e8f0;
+}
+.form-input {
+    border-radius: 0.5rem;
+    border-color: #cbd5e1;
+    transition: all 0.2s ease-in-out;
+    padding: 0.5rem; /* Added padding for better look */
+}
+.form-input:focus {
+    --tw-ring-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 0 0 0 3px var(--tw-ring-color);
+    border-color: #3b82f6;
+    outline: none;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 0.5rem;
+    font-weight: 700;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.btn:disabled { opacity: 0.7; cursor: not-allowed; }
+.btn-primary { background-image: linear-gradient(to right, #3b82f6, #2563eb); color: white; }
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 6px rgb(0 0 0 / 0.1); }
+.btn-secondary { background-color: #475569; color: white; }
+.btn-secondary:hover:not(:disabled) { background-color: #334155; transform: translateY(-1px); }
+
+/* Manual Job Table */
+.btn-delete-row {
+    background-color: #fee2e2;
+    color: #ef4444;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.btn-delete-row:hover { background-color: #ef4444; color: white; }
+
+#manual-job-materials-table th, #manual-job-materials-table td {
+    padding: 8px 4px;
+    font-size: 0.875rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+/* Collapsible Logic */
+.collapsible-card > *:not(h3) { display: none; }
+.collapsible-card.open > * { display: block; }
+.collapsible-card h3 { cursor: pointer; }
+.collapsible-card h3::after { content: "▶"; float: right; transition: transform .2s; }
+.collapsible-card.open h3::after { content: "▼"; }
+
+/* Print Styles */
+@media print {
+    body * { visibility: hidden; }
+    #print-area, #print-area * { visibility: visible; }
+    #print-area { display: block; position: absolute; left: 0; top: 0; width: 100%; }
+    .no-print { display: none; }
+}
